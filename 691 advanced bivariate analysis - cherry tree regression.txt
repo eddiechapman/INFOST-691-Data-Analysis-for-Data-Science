@@ -1,0 +1,132 @@
+# INFOST691 Data Analysis for Data Science 
+# Advanced Bivariate Analysis
+# Eddie Chapman
+
+# Cherry tree dataset
+
+Linear relationship
+Multivariate normality
+No or little multicollinearity
+No auto-correlation
+Homoscedasticity
+
+library(ggplot2)
+options(scipen=999)
+
+# Loading data
+data <- read.csv(file.choose(), header = T, sep = '\t')
+
+# Confirming linear relationships
+par(mfrow=c(2,2))  # Shows all 4 plots in one window
+plot(data)
+
+# Visualizing density for normality of...
+# ...volume
+ggplot(data, aes(x = Volume)) +
++   geom_density() +
++   ggtitle("Density plot of cherry tree volume") +
++   theme(plot.title = element_text(hjust = 0.5))
+
+# ...diameter
+ggplot(data, aes(x = Diam)) +
++   geom_density() +
++   ggtitle("Density plot of cherry tree diameter") +
++   theme(plot.title = element_text(hjust = 0.5))
+
+# ...height
+ggplot(data, aes(x = Height)) +
++   geom_density() +
++   ggtitle("Density plot of cherry tree height") +
++   theme(plot.title = element_text(hjust = 0.5))
+
+
+# Running linear regression for volume ~ height
+fit <- lm(Volume ~ Height, data)
+plot(fit)
+
+# Removing outlier
+data <- data[-31,]
+
+# Repeating regression w/o outlier
+fit <- lm(Volume ~ Height, data)
+summary(fit)
+
+Call:
+lm(formula = Volume ~ Height, data = data)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-21.274  -9.894  -2.894  12.068  29.852 
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept) -87.1236    29.2731  -2.976 0.005835 ** 
+Height        1.5433     0.3839   4.021 0.000378 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 13.4 on 29 degrees of freedom
+Multiple R-squared:  0.3579,    Adjusted R-squared:  0.3358 
+F-statistic: 16.16 on 1 and 29 DF,  p-value: 0.0003784
+
+
+# Linear regression for volume ~ diameter
+fit <- lm(Volume ~ Diam, data)
+plot(fit)
+summary(fit)
+
+Call:
+lm(formula = Volume ~ Diam, data = data)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-7.5036 -2.3834 -0.0489  2.3951  6.3726 
+
+Coefficients:
+            Estimate Std. Error t value             Pr(>|t|)    
+(Intercept) -33.3104     3.2784  -10.16      0.0000000000676 ***
+Diam          4.7619     0.2464   19.33 < 0.0000000000000002 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 3.813 on 28 degrees of freedom
+Multiple R-squared:  0.9303,    Adjusted R-squared:  0.9278 
+F-statistic: 373.6 on 1 and 28 DF,  p-value: < 0.00000000000000022
+
+# Multiple linear regression for volume ~ diameter, height
+fit <- lm(data$Volume ~ data$Diam + data$Height, data=data)
+plot(fit)
+summary(fit)
+
+Call:
+lm(formula = data$Volume ~ data$Diam + data$Height, data = data)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-5.6396 -1.2786 -0.4938  2.0262  6.4599 
+
+Coefficients:
+            Estimate Std. Error t value             Pr(>|t|)    
+(Intercept) -52.2362     8.0390  -6.498          0.000000576 ***
+data$Diam     4.4773     0.2518  17.781 < 0.0000000000000002 ***
+data$Height   0.2992     0.1179   2.538               0.0172 *  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 3.49 on 27 degrees of freedom
+Multiple R-squared:  0.9437,    Adjusted R-squared:  0.9395 
+F-statistic: 226.3 on 2 and 27 DF,  p-value: < 0.00000000000000022
+
+# Test correlation between diameter and height to check for multi-collinearity
+cor.test(data$Height, data$Diam, alternative = 'two.sided', method = 'pearson')
+
+        Pearson's product-moment correlation
+
+data:  data$Height and data$Diam
+t = 2.6326, df = 28, p-value = 0.01364
+alternative hypothesis: true correlation is not equal to 0
+95 percent confidence interval:
+ 0.1014357 0.6942823
+sample estimates:
+      cor 
+0.4454272 

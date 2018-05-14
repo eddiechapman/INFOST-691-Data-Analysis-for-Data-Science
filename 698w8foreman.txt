@@ -1,0 +1,25 @@
+library(dplyr)
+library(tidytext)
+
+about_app <- read.csv("aboutMandrillApp.csv", as.is = 1, col.names = c("tweet"))
+about_other <- read.csv("aboutOther.csv", as.is = 1, col.names = c("tweet"))
+test_set <- read.csv("testTweets.csv", as.is = 1, col.names = c("tweet"))
+
+tweets <- bind_rows("app" = about_app, "other" = about_other, "test" = test_set,
+                    .id = "group")
+
+tweets <- tweets %>%
+  mutate(group = as.factor(group)) %>%
+  mutate(id = row_number()) %>%
+  unnest_tokens(word, tweet)
+  
+word_count <- tweets %>%
+  count(group, word, sort = TRUE) %>%
+  mutate(n = n + 1) %>%
+  group_by(group) %>%
+  mutate(p = n / sum(n))
+
+str(tweets)
+str(word_count)  
+
+

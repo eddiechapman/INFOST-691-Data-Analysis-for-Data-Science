@@ -1,0 +1,95 @@
+# INFOST691 Data Analysis for Data Science 
+# Advanced Bivariate Analysis
+# Eddie Chapman
+
+# Eye Color vs. Flicker Rate ANOVA
+
+# Libraries, settings
+library(ggplot2)
+library(dplyr)
+library(car)
+options(scipen = 999)  # Turn off scientific notation
+par(mfrow=c(2,2))  # Show up to 4 plots in one window
+
+# Open data
+data <- read.csv(file.choose(), sep = '\t', header = TRUE)
+names(data) <- c("Color", "Flicker")  # Because I cannot reliably type "colour" w/o mistakes
+
+# Visualize distribution
+p.2 <- ggplot(data, aes(Color, Flicker)) +
+  geom_boxplot(varwidth = TRUE, fill = 'plum') +
+  ggtitle("Box plot of eye colors vs. flicker rate") +
+  xlab("Eye color") + ylab("Flicker rate") +
+  theme(plot.title = element_text(hjust = .5, size = 16))
+
+ggplot(data, aes(Flicker, fill = Color)) +
+  geom_density(alpha = 0.65) +
+  ggtitle("Density plot of flicker rate by eye color") +
+  xlab("Flicker rate") + ylab("Density") +
+  theme(plot.title = element_text(hjust = .5, size = 16))
+
+# Visualizing means and variance
+# Creating means data frame
+means <- data %>%
+           group_by(Color) %>%
+           summarise(Flicker = mean(Flicker))
+
+# Point plot with means enlarged
+p3 <- ggplot(data, aes(x = Color, y = Flicker, color = Color)) +
+  geom_point(alpha = .65) +
+  geom_point(data = means, size = 4) + 
+  ggtitle("Means plot of eye colors vs. flicker rate") + 
+  xlab("Eye Color") + ylab("Flicker rate") +
+  theme(plot.title = element_text(hjust = .5, size = 16))
+
+# Correcting color correspondence 
+p3 + scale_color_manual(breaks = c("Blue", "Brown", "Green"), 
++                       values = c("blue", "brown", "green"))
+
+# Descriptive statistics per eye color
+summarise(group_by(data, Color), 
+	  count = n(), 
+	  m = mean(Flicker), 
+          sd = sd(Flicker))
+
+# A tibble: 3 x 4
+  Color count    m    sd
+  <fct> <int> <dbl> <dbl>
+1 Blue      6  28.2  1.53
+2 Brown     8  25.6  1.37
+3 Green     5  26.9  1.84
+
+# ANOVA, descriptive statistics 
+# H0: The means of the groups are equal
+# H1: The means of at least one group differs <-
+fit <- aov(Flicker ~ Color, data = data)
+summary(fit)
+            Df Sum Sq Mean Sq F value Pr(>F)  
+Color        2  23.00  11.499   4.802 0.0232 *
+Residuals   16  38.31   2.394                 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+# Checking for equality of variance
+# H0 - all group variances are equal <- 
+# H1 - at least one group variance differs
+leveneTest(Flicker ~ Color, data = data)
+Levene's Test for Homogeneity of Variance (center = median)
+      Df F value Pr(>F)
+group  2  0.0912 0.9133
+      16 
+
+# TukeyHSD to find which group differs 
+# H0 - there is no difference in means between the two samples
+# H1 - there is a difference in means between the two samples
+TukeyHSD(fit)
+  Tukey multiple comparisons of means
+    95% family-wise confidence level
+
+Fit: aov(formula = Flicker ~ Color, data = data)
+
+$Color
+                 diff        lwr       upr     p adj
+Brown-Blue  -2.579167 -4.7354973 -0.422836 0.0183579
+Green-Blue  -1.246667 -3.6643959  1.171063 0.3994319
+Green-Brown  1.332500 -0.9437168  3.608717 0.3124225

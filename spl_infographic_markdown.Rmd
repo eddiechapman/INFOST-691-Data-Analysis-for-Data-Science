@@ -1,0 +1,295 @@
+---
+title: "Choropleth Mapping in R with Library Data"
+author: "Eddie Chapman"
+date: "May 1st, 2018"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+geometry: margin = 1in
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Introduction
+
+I created a choropleth map to visualize the distribution of US publishing locations in the holdings of the [UWM Special Collections Library](http://uwm.edu/libraries/special/).  
+  
+I use a CSV file containing library metadata, US map data from the `maps` package, and `ggplot2` for visualization.
+![](plot.png)
+
+  
+
+#### Set-up  
+  
+* `dplyr` for consistent data manipulation. 
+* `ggplot2` for visualzation. 
+* `maps` for map data and related functions. 
+
+```{r packages, message = FALSE, warning = FALSE}
+library(dplyr)
+library(ggplot2)
+library(maps)
+setwd('C:\\Users\\chapman4\\Downloads\\spl infographic')
+```
+
+### Library records
+#### Loading library records
+
+The library records are in CSV format. They were adapted from MARC records. 
+
+```{r load.books}
+books <- read.csv('spl.csv', header = TRUE, fileEncoding = 'UTF-8-BOM')
+```  
+
+```{r load.books.print, echo = FALSE}
+knitr::kable(books[1:4, ], align = 'ccccc')
+```
+
+#### MARC location codes
+
+The `place.code` is the only column needed for this visualization. It corresponds to the book's place of publishing, using the [MARC 21 Country Code Standard](https://www.loc.gov/marc/countries/countries_code.html).  
+
+I need to translate the MARC country codes into their full names.  
+  
+The [MARC 21 Standards Website](https://www.loc.gov/marc/countries/countries_code.html) provides a clean list of country codes and their full names seperated by tabs. I copy it into a text file and read it in R as a dataframe.   
+
+```{r place.codes}
+place.codes <- read.csv('place_codes.txt', 
+                        header = TRUE, 
+                        sep = '\t', 
+                        fileEncoding = 'UTF-8-BOM')
+```
+```{r place.codes.print, echo = FALSE}
+knitr::kable(place.codes[1:4, ], align = 'cl')
+```
+
+#### Translating MARC Country Codes
+
+I use `inner_join()` to merge the MARC country code dataframe with the library record dataframe along matching values in the `place.code` column.  
+  
+Non-matching rows from either dataframe are dropped.  
+
+```{r join.place.names, message = FALSE, warning = FALSE}
+books <- inner_join(books, place.codes, by = 'place.code') 
+
+```
+```{r join.place.names.print, echo = FALSE}
+knitr::kable(books[1:4, ], align = 'lcccl')
+```
+
+#### State publishing totals
+
+
+
+To sum up the number of library records published in each state, I use `dplyr`'s `count()`.  
+  
+`count()` reduces the dataframe to one row for each place.name value and adds a count of how many rows belong in each group.  
+  
+All other columns are dropped. 
+
+```{r drop.non.place.names}
+books <- count(books, place.name)
+```
+
+```{r drop.non.place.name.print, echo = FALSE}
+knitr::kable(books[1:4, ], align = 'lc')
+```
+
+Note that these include non-US locations. I will remove them next. 
+
+### Map data
+#### US State map
+
+The `maps` package contains a dataset of geographic coordinates for US states called `state`.  
+  
+The dataset needs to be formatted as a dataframe to comply with `ggplot2`.  
+  
+This is possible with `ggplot2`'s `map_data()`. 
+
+```{r us.map}
+us.map <- map_data('state')
+```
+```{r us.map.print, echo = FALSE}
+knitr::kable(us.map[1:4, ], align = 'cccclc')
+```
+
+
+#### Adding publishing totals
+
+I use  `inner_join()` to add the publishing location totals to each row of the map data based on state name. 
+
+String formatting to ensure proper join: 
+
+* State names need to be lowercase  
+
+
+* Some state names have non-standard MARC titles ('New York (State)') that must be standardized. 
+
+```{r join.lib.and.map, message = FALSE, warning = FALSE}
+books <- books %>%
+  mutate(place.name = recode(place.name, 
+                             'New York (State)'   = 'New York',
+                             'Washington (State)' = 'Washington'),
+         place.name = tolower(place.name))
+
+us.map <- inner_join(us.map, books, by = c('region' = 'place.name'))
+```
+```{r join.lib.and.map.print, echo = FALSE}
+knitr::kable(us.map[1:4, ], align = 'l')
+```
+
+#### Annotation coordinates  
+  
+The map requires coordinates for the center of each state in order to situate the publishing totals as annotations. 
+
+The `maps` package includes `state.center`, a list of coordinates for the center of each state. It also includes `state.name`, an alphabetical list of state names. The two lists are in the same order, so they can be combined as a dataframe.  
+  
+The state names are lowered to allow for joining with the map data. 
+
+```{r annotation.coords}
+annotation.coords <- data.frame(state.name, state.center) %>%
+  mutate(state.name = tolower(state.name))
+```
+
+```{r annotation.coords.print, echo = FALSE}
+knitr::kable(annotation.coords[1:4, ], align = 'lcc')
+```
+
+The `inner_join()` adds an `x` and `y` column to the map data that corresponds to the state's center. 
+
+```{r join.map.with.coords}
+us.map <- inner_join(us.map, annotation.coords, by = c('region' = 'state.name'))
+```
+```{r echo = FALSE}
+knitr::kable(us.map[1:4, ], align = 'cc')
+```
+
+### Plotting
+### Custom  theme
+
+I create a custom `ggplot2` theme. It's a blank slate. 
+
+```{r}
+theme_bare <- theme(
+  axis.line        = element_blank(),
+  axis.text.x      = element_blank(),
+  axis.text.y      = element_blank(),
+  axis.ticks       = element_blank(),
+  axis.title.x     = element_blank(),
+  axis.title.y     = element_blank(),
+  legend.text      = element_text(size = 7),
+  legend.title     = element_text(size = 8),
+  panel.background = element_blank(),
+  panel.border     = element_blank())
+```
+
+### Plotting
+
+Initializing the plot object and specifying the data source. 
+
+```{r plot.1, eval = FALSE}
+p <- ggplot(us.map)
+
+```
+***
+  
+Specifying the type of plot. `geom_polygon()` plots a series of shapes.  
+  
+* `long` and `lat` are the X and Y coordinates for the shapes  
+  
+* `group = group` tells `ggplot2` how many seperate shapes to plot. The map data `group` column contains one number for   each state.  
+  
+* `fill = log(n))` tells `ggplot2` how to color the inside of each shape. I use the publishing total from the library    records. I take the log of this number so that differences between all states are visible. Otherwise only a few        states dominate and the rest have no color.  
+  
+* `color = 'gray'` specifies the color of the state outlines.  
+  
+* `size = 0.1` specifies the size of the state outlines. 
+
+```{r plot.2, eval = FALSE}
+p + geom_polygon(aes(long, lat, 
+                     group = group, 
+                     fill  = log(n)),
+                 color = 'gray', 
+                 size  = 0.1) 
+```
+***
+  
+`scale_fill_gradient()` determines the range of colors that are used to fill the state shapes. It specifies a gradient rather than a set of discrete values.  
+  
+* `high` and `low` set the boundaries for the fill gradient.
+
+```{r plot.3, eval = FALSE}
+p + scale_fill_gradient(high = 'darkgreen', 
+                        low  = 'seashell')
+```
+***
+  
+`coord_fixed()` is used to ensure that units of value are represented similarly on the X and Y axis. It may interfere with important map properties like projection. I'm not familar enough with maps to understand. 
+
+```{r plot.4, eval = FALSE}
+p + coord_fixed(1.3)
+```
+***
+  
+This adds a title to the plot. 
+
+```{r plot.6, eval = FALSE}
+p + ggtitle('UWM Special Collections Holdings By State')
+```
+***
+  
+This adds the annotations. The `ggplot2` `annotation()` function assumes that coordinates are provided by a seperate dataset. I use `with()` to circumvent this feature.  
+  
+* `geom = text` specifies the type of annotation object, which could be shapes, points, lines etc.  
+  
+* `x` and `y` are annotation coordinates (the state centers)  
+  
+* `label = n` chooses the values to display as annotation (the number of books published in each state)  
+  
+* `size = 3` sets the size of the annotations. It appears to be relative to the size of the window. 
+
+
+```{r plot.7, eval = FALSE}
+p + with(us.map, annotate(geom = 'text', x, y, label = n, size = 3))
+```
+***
+  
+Applying the custom blank theme from above.
+
+```{r plot.8, eval = FALSE}
+p + theme_bare
+```
+***
+  
+Removing the legend, because a log scale is not very useful in combination with the annotations. 
+
+```{r plot.9, eval = FALSE}
+p +  theme(legend.position = 'none')
+```
+***
+  
+The full `ggplot2` code: 
+
+```{r plot.full}
+ggplot(us.map) +
+  geom_polygon(aes(x = long, y = lat, group = group, fill = log(n)),
+               color = 'gray', size = 0.1) +
+  ggtitle('UWM Special Collections Holdings By State') +
+  scale_fill_gradient(high = 'darkgreen', low = 'seashell', guide = 'colorbar') +
+  coord_fixed(1.3) +
+  with(us.map, annotate(geom = 'text', x = x, y = y, label = n, size = 3)) +
+  theme_bare +
+  theme(legend.position = 'none')
+```
+
+### Conclusion
+
+Improvements:  
+  
+* Annotations are cramped in some areas and could be shifted.  
+  
+* Where are Hawaii and Alaska?  
+  
+* A world map would be cool. 
